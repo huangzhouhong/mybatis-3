@@ -34,19 +34,19 @@ import org.hzh.mybatis.parser.MySqlParser;
 
 public class DebugUtils {
 
-	public static void inspect(String sql) throws IOException {
+	public static void inspect(String sql) {
 		ParseExecutor executor = new ParseExecutor();
 		ParseResult parseResult= executor.parse(sql);
 
 		Trees.inspect(parseResult.getTree(), parseResult.getParser());
 	}
 
-	public static void printToken(String pathOrSql, boolean isPath) throws IOException {
+	public static void printToken(String sql){
 		ErrorStateListener lexerListener = new ErrorStateListener();
 		lexerListener.setPrefix("lexer");
 
 		CharStream is = null;
-		is = CharStreams.fromString(pathOrSql);
+		is = CharStreams.fromString(sql);
 
 		CaseChangingCharStream caseChangingCharStream = new CaseChangingCharStream(is, true);
 		MySqlLexer lexer = new MySqlLexer(caseChangingCharStream);
