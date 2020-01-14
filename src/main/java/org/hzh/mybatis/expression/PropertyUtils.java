@@ -9,18 +9,18 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+
+import org.stringtemplate.v4.compiler.STParser.mapExpr_return;
 
 public class PropertyUtils {
 	private static final Object[] NULL_ARGUMENTS = {};
-//    private static final char NESTED        = '.';
 	private static final char INDEXED_START = '[';
 	private static final char INDEXED_END = ']';
 
-	/*
-	 * expression: a.b.c or a.b[0].c if a or b is Collection, result is a List index
-	 * not impl now
-	 */
-	public Object getExpression(Object obj, String expression) {
+	// set `ExpressionTests`
+	public static Object getExpression(Object obj, String expression) throws NoSuchMethodException,
+			IllegalAccessException, IllegalArgumentException, InvocationTargetException, IntrospectionException {
 		String[] parts = expression.split("\\.");
 		Object tmpObj = obj;
 		for (String part : parts) {
@@ -42,23 +42,42 @@ public class PropertyUtils {
 		return tmpObj;
 	}
 
-	public Object getByPath(Object obj, String path) {
-		return null;
+	public static Object getByPath(Object obj, String path) throws NoSuchMethodException, IllegalAccessException,
+			IllegalArgumentException, InvocationTargetException, IntrospectionException {
+		if (obj instanceof Map) {
+			Map<?, ?> map = (Map<?, ?>) obj;
+			return map.get(path);
+		} else if (obj instanceof Collection<?>) {
+			// `obj instanceof Collection<?>` means try to get property of item
+			List<Object> itemPropertyList = new ArrayList<>();
+			for (Object item : (Collection<?>) obj) {
+				Object itemProperty = getByPath(item, path);
+				// e.g. `list.group.users.userId`,list and users is collection
+				if (itemProperty instanceof Collection<?>) {
+					itemPropertyList.addAll((Collection<?>) itemProperty);
+				} else {
+					itemPropertyList.add(itemProperty);
+				}
+			}
+			return itemPropertyList;
+		} else {
+			return getProperty(obj, path);
+		}
 	}
 
-	public Object getByIndex(Object obj, int index) {
+	public static Object getByIndex(Object obj, int index) {
 		if (obj instanceof List) {
 			return ((List<?>) obj).get(index);
-		}else if(obj instanceof Collection) {
-			List<Object> list=new ArrayList<Object>();
-			list.addAll((Collection<?>)obj);
+		} else if (obj instanceof Collection) {
+			List<Object> list = new ArrayList<Object>();
+			list.addAll((Collection<?>) obj);
 			return list.add(index);
 		}
 		return null;
 	}
 
-	public Object getProperty(Object bean, String propertyName) throws NoSuchMethodException, IntrospectionException,
-			IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+	public static Object getProperty(Object bean, String propertyName) throws NoSuchMethodException,
+			IntrospectionException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		if (bean == null) {
 			return null;
 		} else {
@@ -67,7 +86,7 @@ public class PropertyUtils {
 		}
 	}
 
-	public Method getReadMethod(Class<?> beanClass, String propertyName)
+	public static Method getReadMethod(Class<?> beanClass, String propertyName)
 			throws IntrospectionException, NoSuchMethodException {
 		PropertyDescriptor propertyDescriptor = getPropertyDescriptor(beanClass, propertyName);
 		if (propertyDescriptor == null) {
@@ -80,7 +99,7 @@ public class PropertyUtils {
 		return readMethod;
 	}
 
-	public PropertyDescriptor getPropertyDescriptor(Class<?> beanClass, String propertyName)
+	public static PropertyDescriptor getPropertyDescriptor(Class<?> beanClass, String propertyName)
 			throws IntrospectionException {
 
 		final BeanInfo beanInfo = Introspector.getBeanInfo(beanClass);
