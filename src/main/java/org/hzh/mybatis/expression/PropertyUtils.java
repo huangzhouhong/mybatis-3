@@ -11,16 +11,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import org.stringtemplate.v4.compiler.STParser.mapExpr_return;
-
 public class PropertyUtils {
 	private static final Object[] NULL_ARGUMENTS = {};
 	private static final char INDEXED_START = '[';
 	private static final char INDEXED_END = ']';
 
-	// set `ExpressionTests`
-	public static Object getExpression(Object obj, String expression) throws NoSuchMethodException,
-			IllegalAccessException, IllegalArgumentException, InvocationTargetException, IntrospectionException {
+	// see `ExpressionTests`
+	public static Object getExpression(Object obj, String expression) {
 		String[] parts = expression.split("\\.");
 		Object tmpObj = obj;
 		for (String part : parts) {
@@ -42,8 +39,7 @@ public class PropertyUtils {
 		return tmpObj;
 	}
 
-	public static Object getByPath(Object obj, String path) throws NoSuchMethodException, IllegalAccessException,
-			IllegalArgumentException, InvocationTargetException, IntrospectionException {
+	public static Object getByPath(Object obj, String path) {
 		if (obj instanceof Map) {
 			Map<?, ?> map = (Map<?, ?>) obj;
 			return map.get(path);
@@ -76,13 +72,17 @@ public class PropertyUtils {
 		return null;
 	}
 
-	public static Object getProperty(Object bean, String propertyName) throws NoSuchMethodException,
-			IntrospectionException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+	public static Object getProperty(Object bean, String propertyName) {
 		if (bean == null) {
 			return null;
 		} else {
-			Method method = getReadMethod(bean.getClass(), propertyName);
-			return method.invoke(bean, NULL_ARGUMENTS);
+			try {
+				Method method = getReadMethod(bean.getClass(), propertyName);
+				return method.invoke(bean, NULL_ARGUMENTS);
+			} catch (Exception e) {
+				String msg = " There is no getter for property named " + propertyName + " in '" + bean.getClass() + "'";
+				throw new ReflectPropertyException(msg, e);
+			}
 		}
 	}
 
