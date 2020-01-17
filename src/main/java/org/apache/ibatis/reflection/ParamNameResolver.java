@@ -116,11 +116,8 @@ public class ParamNameResolver {
       return null;
     } else if (!hasParamAnnotation && paramCount == 1) {
     	Object value=args[names.firstKey()];
-    	if (value instanceof Collection || (value != null && value.getClass().isArray())) {
-    		String paramName=names.get(names.firstKey());
-    		return new OneParamMap<Object>(paramName, value);
-    	}
-    	return value;
+		String paramName = names.get(names.firstKey());
+		return new OneParamMap(paramName, value);
     } else {
       final Map<String, Object> param = new ParamMap<>();
       int i = 0;

@@ -1,7 +1,5 @@
 package org.hzh.mybatis.analyzer;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -10,6 +8,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.hzh.mybatis.listener.ParamListener;
 import org.hzh.mybatis.listener.ParamListener.ParamInfo;
+import org.hzh.mybatis.listener.SqlProcessorListener;
 import org.hzh.mybatis.parser.MySqlParser;
 
 public class ParseResult {
@@ -42,19 +41,16 @@ public class ParseResult {
 		return sqlParamInfos;
 	}
 
-//	public ApplyParamResult apply(Map<String, Object> params) {
-//		CollectionUtils.removeMapNulls(params);
-//		FieldNames fieldNames = new FieldNames(params.keySet());
-//		TokenStreamRewriter rewriter = new TokenStreamRewriter(tokens);
-//
-//		SqlProcessorListener listener = new SqlProcessorListener(rewriter, fieldNames);
-//		ParseTreeWalker walker = new ParseTreeWalker();
-//		walker.walk(listener, tree);
-//
-//		ApplyParamResult applyParamResult = new ApplyParamResult();
-//		applyParamResult.executaleSql = rewriter.getText();
-//		applyParamResult.paramNameList = listener.paramNameList;
-//		
-//		return applyParamResult;
-//	}
+	public ApplyParamResult apply(Object param) {
+		TokenStreamRewriter rewriter = new TokenStreamRewriter(tokens);
+		SqlProcessorListener listener = new SqlProcessorListener(rewriter, param);
+		ParseTreeWalker walker = new ParseTreeWalker();
+		walker.walk(listener, tree);
+
+		ApplyParamResult applyParamResult = new ApplyParamResult();
+		applyParamResult.executaleSql = rewriter.getText();
+		applyParamResult.paramList = listener.getParamList();
+		
+		return applyParamResult;
+	}
 }
