@@ -54,11 +54,18 @@ public class OneParamMap extends HashMap<String, Object> {
 		if (theValue == null) {
 			return null;
 		}
+		//simple type
 		boolean canDirectMapToDbType = typeHandlerRegistry.hasTypeHandler(theValue.getClass());
 		if (canDirectMapToDbType) {
 			return theValue;
 		}
 
+		// map or bean
+		if (size() == 1) {
+			return PropertyUtils.getByPath(theValue, (String)key);
+		}
+		
+		// list,collection or array
 		if (!super.containsKey(key)) {
 			// only one param, can access property or key of value directly
 			return PropertyUtils.getByPath(theValue, (String)key);

@@ -36,13 +36,29 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		this.rewriter = rewriter;
 		this.param = param;
 	}
-	
+
 	public List<Object> getParamList() {
 		return paramList;
 	}
 
 	private Object getExpressionValue(String expr) {
 		return PropertyUtils.getExpression(param, expr);
+	}
+
+	private Object getWherePartParamValue(ParamContext paramCtx) {
+		Object value = null;
+		if (paramCtx != null) {
+			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
+			String paramName = paramCtx.paramName().getText();
+			value = getExpressionValue(paramName);
+			if (value == null) {
+				if (required) {
+					throw new RuntimeException("param " + paramName + " required");
+				}
+				deleteWherePart(paramCtx);
+			}
+		}
+		return value;
 	}
 
 	@Override
@@ -64,7 +80,7 @@ public class SqlProcessorListener extends MySqlBaseListener {
 			}
 		}
 	}
-	
+
 	@Override
 	public void enterInPredicate(InPredicateContext ctx) {
 		ParamContext paramCtx = ctx.param();
@@ -78,18 +94,18 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				}
 				deleteWherePart(ctx);
 			} else {
-				List<Object> items=new ArrayList<>();
+				List<Object> items = new ArrayList<>();
 				if (value instanceof Collection) {
-					items.addAll((Collection<?>)value);
-				}else {
+					items.addAll((Collection<?>) value);
+				} else {
 					items.add(value);
 				}
-				String questionMarks= String.join(",", Collections.nCopies(items.size(), "?")) ;
+				String questionMarks = String.join(",", Collections.nCopies(items.size(), "?"));
 				if (ctx.leftBracket == null) {
-					questionMarks="(" + questionMarks;
+					questionMarks = "(" + questionMarks;
 				}
 				if (ctx.rightBracket == null) {
-					questionMarks="(" + questionMarks;
+					questionMarks = questionMarks + ")";
 				}
 				rewriter.replace(paramCtx.start, paramCtx.stop, questionMarks);
 				for (Object object : items) {
