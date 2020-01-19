@@ -29,7 +29,6 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	private Object param;
 	private Set<Object> deletedExprs = new HashSet<>();
 
-//	List<String> paramNameList = new ArrayList<>();
 	List<Object> paramList = new ArrayList<>();
 
 	public SqlProcessorListener(TokenStreamRewriter rewriter, Object param) {
@@ -63,21 +62,10 @@ public class SqlProcessorListener extends MySqlBaseListener {
 
 	@Override
 	public void enterBinaryComparasionPredicate(BinaryComparasionPredicateContext ctx) {
-		ParamContext paramCtx = ctx.right.param();
-		if (paramCtx != null) {
-			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
-			String paramName = paramCtx.paramName().getText();
-			Object value = getExpressionValue(paramName);
-			if (value == null) {
-				if (required) {
-					throw new RuntimeException("param " + paramName + " required");
-				}
-				deleteWherePart(ctx);
-			} else {
-				rewriter.replace(ctx.right.start, ctx.right.stop, "?");
-//				paramNameList.add(paramName);
-				paramList.add(value);
-			}
+		Object value = getWherePartParamValue(ctx.right.param());
+		if (value != null) {
+			rewriter.replace(ctx.right.start, ctx.right.stop, "?");
+			paramList.add(value);
 		}
 	}
 
@@ -115,28 +103,20 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		}
 	}
 
-	/**
-	 * find ancestor for LogicalExpressionContext delete the expression under
-	 * LogicalExpressionContext which is ancestor delete logicalOperator
-	 * 
-	 * @param ctx
-	 */
 	private void deleteWherePart(ParserRuleContext ctx) {
-		// find child under `LogicalExpressionContext` which if ancestor of `ctx`
-		ParserRuleContext underLogicalCtx = ctx;
-		while (underLogicalCtx.parent != null && !(underLogicalCtx.parent instanceof LogicalExpressionContext)) {
-			underLogicalCtx = (ParserRuleContext) underLogicalCtx.parent;
-		}
-
-		if (underLogicalCtx.parent instanceof LogicalExpressionContext) {
-			LogicalExpressionContext logicalExpressionContext = (LogicalExpressionContext) underLogicalCtx.parent;
-			LogicalOperatorContext opCtx = logicalExpressionContext.logicalOperator();
-			rewriter.delete(opCtx.start, opCtx.stop);
-			directDeleteExpr(underLogicalCtx);
-		} else if (ctx.parent instanceof PredicateExpressionContext) {
-			directDeleteExpr((ParserRuleContext) ctx.parent);
-		} else {
-			directDeleteExpr(ctx);
+		ParserRuleContext toDeleteCtx = ctx;
+		while (toDeleteCtx.parent != null) {
+			if (toDeleteCtx.parent instanceof LogicalExpressionContext) {
+				LogicalExpressionContext logicalExpressionContext = (LogicalExpressionContext) toDeleteCtx.parent;
+				LogicalOperatorContext opCtx = logicalExpressionContext.logicalOperator();
+				rewriter.delete(opCtx.start, opCtx.stop);
+				directDeleteExpr(toDeleteCtx);
+				break;
+			} else if (toDeleteCtx.parent instanceof FromClauseContext) {
+				directDeleteExpr(toDeleteCtx);
+				break;
+			}
+			toDeleteCtx = (ParserRuleContext) toDeleteCtx.parent;
 		}
 	}
 

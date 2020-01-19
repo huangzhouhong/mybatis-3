@@ -31,11 +31,15 @@ public class ParseResult {
 
 	public Set<ParamInfo> getSqlParamInfos() {
 		if (sqlParamInfos == null) {
-			ParamListener listener = new ParamListener();
-			ParseTreeWalker walker = new ParseTreeWalker();
-			walker.walk(listener, tree);
+			synchronized (this) {
+				if (sqlParamInfos == null) {
+					ParamListener listener = new ParamListener();
+					ParseTreeWalker walker = new ParseTreeWalker();
+					walker.walk(listener, tree);
 
-			sqlParamInfos=listener.getParamInfos();
+					sqlParamInfos = listener.getParamInfos();
+				}
+			}
 		}
 
 		return sqlParamInfos;
@@ -50,7 +54,7 @@ public class ParseResult {
 		ApplyParamResult applyParamResult = new ApplyParamResult();
 		applyParamResult.executaleSql = rewriter.getText();
 		applyParamResult.paramList = listener.getParamList();
-		
+
 		return applyParamResult;
 	}
 }
