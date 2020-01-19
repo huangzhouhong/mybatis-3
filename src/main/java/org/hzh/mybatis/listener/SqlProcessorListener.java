@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.hzh.mybatis.expression.PropertyUtils;
 import org.hzh.mybatis.parser.MySqlBaseListener;
+import org.hzh.mybatis.parser.MySqlParser.BetweenPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.BinaryComparasionPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
@@ -72,34 +73,37 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	@Override
 	public void enterInPredicate(InPredicateContext ctx) {
 		ParamContext paramCtx = ctx.param();
-		if (paramCtx != null) {
-			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
-			String paramName = paramCtx.paramName().getText();
-			Object value = getExpressionValue(paramName);
-			if (value == null) {
-				if (required) {
-					throw new RuntimeException("param " + paramName + " required");
-				}
-				deleteWherePart(ctx);
+		Object value = getWherePartParamValue(paramCtx);
+		if (value != null) {
+			List<Object> items = new ArrayList<>();
+			if (value instanceof Collection) {
+				items.addAll((Collection<?>) value);
 			} else {
-				List<Object> items = new ArrayList<>();
-				if (value instanceof Collection) {
-					items.addAll((Collection<?>) value);
-				} else {
-					items.add(value);
-				}
-				String questionMarks = String.join(",", Collections.nCopies(items.size(), "?"));
-				if (ctx.leftBracket == null) {
-					questionMarks = "(" + questionMarks;
-				}
-				if (ctx.rightBracket == null) {
-					questionMarks = questionMarks + ")";
-				}
-				rewriter.replace(paramCtx.start, paramCtx.stop, questionMarks);
-				for (Object object : items) {
-					paramList.add(object);
-				}
+				items.add(value);
 			}
+			String questionMarks = String.join(",", Collections.nCopies(items.size(), "?"));
+			if (ctx.leftBracket == null) {
+				questionMarks = "(" + questionMarks;
+			}
+			if (ctx.rightBracket == null) {
+				questionMarks = questionMarks + ")";
+			}
+			rewriter.replace(paramCtx.start, paramCtx.stop, questionMarks);
+			for (Object object : items) {
+				paramList.add(object);
+			}
+		}
+	}
+
+	@Override
+	public void enterBetweenPredicate(BetweenPredicateContext ctx) {
+		Object value1 = getWherePartParamValue(ctx.p1.param());
+		Object value2 = getWherePartParamValue(ctx.p2.param());
+		if (value1 != null && value2 != null) {
+			rewriter.replace(ctx.p1.start, ctx.p1.stop, "?");
+			rewriter.replace(ctx.p2.start, ctx.p2.stop, "?");
+			paramList.add(value1);
+			paramList.add(value2);
 		}
 	}
 
