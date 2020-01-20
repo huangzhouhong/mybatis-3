@@ -16,10 +16,13 @@ import org.hzh.mybatis.parser.MySqlParser.BinaryComparasionPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.InPredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.LikePredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalOperatorContext;
 import org.hzh.mybatis.parser.MySqlParser.ParamContext;
 import org.hzh.mybatis.parser.MySqlParser.PredicateExpressionContext;
+import org.hzh.mybatis.parser.MySqlParser.RegexpPredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.SoundsLikePredicateContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,33 +44,14 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		return paramList;
 	}
 
-	private Object getExpressionValue(String expr) {
-		return PropertyUtils.getExpression(param, expr);
-	}
-
-	private Object getWherePartParamValue(ParamContext paramCtx) {
-		Object value = null;
-		if (paramCtx != null) {
-			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
-			String paramName = paramCtx.paramName().getText();
-			value = getExpressionValue(paramName);
-			if (value == null) {
-				if (required) {
-					throw new RuntimeException("param " + paramName + " required");
-				}
-				deleteWherePart(paramCtx);
-			}
-		}
-		return value;
-	}
-
 	@Override
 	public void enterBinaryComparasionPredicate(BinaryComparasionPredicateContext ctx) {
-		Object value = getWherePartParamValue(ctx.right.param());
-		if (value != null) {
-			rewriter.replace(ctx.right.start, ctx.right.stop, "?");
-			paramList.add(value);
-		}
+		processWhereSimpleParamContext(ctx.right.param());
+//		Object value = getWherePartParamValue(ctx.right.param());
+//		if (value != null) {
+//			rewriter.replace(ctx.right.start, ctx.right.stop, "?");
+//			paramList.add(value);
+//		}
 	}
 
 	@Override
@@ -107,6 +91,66 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		}
 	}
 
+	@Override
+	public void enterSoundsLikePredicate(SoundsLikePredicateContext ctx) {
+		processWhereSimpleParamContext(ctx.predicateOrParam().param());
+	}
+
+	@Override
+	public void enterLikePredicate(LikePredicateContext ctx) {
+		processWhereSimpleParamContext(ctx.predicateOrParam().param());
+	}
+
+	@Override
+	public void enterRegexpPredicate(RegexpPredicateContext ctx) {
+		processWhereSimpleParamContext(ctx.predicateOrParam().param());
+	}
+
+	@Override
+	public void exitLogicalExpression(LogicalExpressionContext ctx) {
+		// if two expr deleted,find ancestor `LogicalExpressionContext` and delete
+		// `logicalOperator`
+		List<ExpressionContext> exprList = ctx.expression();
+		assert exprList.size() == 2;
+		ExpressionContext expr1 = exprList.get(0);
+		ExpressionContext expr2 = exprList.get(1);
+		if (deletedExprs.contains(expr1) && deletedExprs.contains(expr2)) {
+			deleteWherePart(ctx);
+		}
+	}
+
+	@Override
+	public void exitFromClause(FromClauseContext ctx) {
+		ExpressionContext whereExpr = ctx.whereExpr;
+		if (deletedExprs.contains(whereExpr)) {
+			rewriter.delete(ctx.WHERE().getSymbol());
+		}
+	}
+
+	private void processWhereSimpleParamContext(ParamContext paramCtx) {
+		Object value = getWherePartParamValue(paramCtx);
+		if (value != null) {
+			rewriter.replace(paramCtx.start, paramCtx.stop, "?");
+			paramList.add(value);
+		}
+	}
+
+	private Object getWherePartParamValue(ParamContext paramCtx) {
+		Object value = null;
+		if (paramCtx != null) {
+			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
+			String paramName = paramCtx.paramName().getText();
+			value = getExpressionValue(paramName);
+			if (value == null) {
+				if (required) {
+					throw new RuntimeException("param " + paramName + " required");
+				}
+				deleteWherePart(paramCtx);
+			}
+		}
+		return value;
+	}
+
 	private void deleteWherePart(ParserRuleContext ctx) {
 		ParserRuleContext toDeleteCtx = ctx;
 		while (toDeleteCtx.parent != null) {
@@ -130,25 +174,8 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		logger.debug("delete " + ctx.getClass());
 	}
 
-	@Override
-	public void exitLogicalExpression(LogicalExpressionContext ctx) {
-		// if two expr deleted,find ancestor `LogicalExpressionContext` and delete
-		// `logicalOperator`
-		List<ExpressionContext> exprList = ctx.expression();
-		assert exprList.size() == 2;
-		ExpressionContext expr1 = exprList.get(0);
-		ExpressionContext expr2 = exprList.get(1);
-		if (deletedExprs.contains(expr1) && deletedExprs.contains(expr2)) {
-			deleteWherePart(ctx);
-		}
-	}
-
-	@Override
-	public void exitFromClause(FromClauseContext ctx) {
-		ExpressionContext whereExpr = ctx.whereExpr;
-		if (deletedExprs.contains(whereExpr)) {
-			rewriter.delete(ctx.WHERE().getSymbol());
-		}
+	private Object getExpressionValue(String expr) {
+		return PropertyUtils.getExpression(param, expr);
 	}
 
 }
