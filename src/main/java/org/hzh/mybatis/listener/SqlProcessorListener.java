@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.antlr.v4.parse.ANTLRParser.option_return;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.hzh.mybatis.expression.PropertyUtils;
@@ -17,6 +18,7 @@ import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.InPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.LikePredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.LimitClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalOperatorContext;
 import org.hzh.mybatis.parser.MySqlParser.ParamContext;
@@ -107,6 +109,40 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	}
 
 	@Override
+	public void enterLimitClause(LimitClauseContext ctx) {
+		ParamContext limitParamCtx = ctx.limit.param();
+		Object limitValue = getParamValue(limitParamCtx, () -> rewriter.delete(ctx.start, ctx.stop));
+		if (ctx.offset == null) {
+			if (limitValue != null) {
+				rewriter.replace(ctx.limit.start, ctx.limit.stop, "?");
+				paramList.add(limitValue);
+			}
+		} else {
+			boolean offsetFirst = ctx.OFFSET() == null;
+			Object offsetValue = getParamValue(ctx.offset.param(), () -> {
+				if (offsetFirst) {
+					rewriter.delete(ctx.op);
+				} else {
+					rewriter.delete(ctx.OFFSET().getSymbol());
+				}
+				rewriter.delete(ctx.offset.start, ctx.offset.stop);
+			});
+
+			List<Object> limitParamValueList = new ArrayList<>(2);
+			if (limitValue != null) {
+				rewriter.replace(ctx.limit.start, ctx.limit.stop, "?");
+				limitParamValueList.add(limitValue);
+			}
+			if (offsetValue != null) {
+				rewriter.replace(ctx.offset.start, ctx.offset.stop, "?");
+				int offsetValueIndex = offsetFirst ? 0 : 1;
+				limitParamValueList.add(offsetValueIndex, offsetValue);
+			}
+			paramList.addAll(limitParamValueList);
+		}
+	}
+
+	@Override
 	public void exitLogicalExpression(LogicalExpressionContext ctx) {
 		// if two expr deleted,find ancestor `LogicalExpressionContext` and delete
 		// `logicalOperator`
@@ -136,6 +172,12 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	}
 
 	private Object getWherePartParamValue(ParamContext paramCtx) {
+		return getParamValue(paramCtx, () -> deleteWherePart(paramCtx));
+	}
+
+	// try get param
+	// if ParamContext not null(defined) and value null,call delete callback
+	private Object getParamValue(ParamContext paramCtx, DeleteOperation op) {
 		Object value = null;
 		if (paramCtx != null) {
 			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
@@ -145,10 +187,14 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				if (required) {
 					throw new RuntimeException("param " + paramName + " required");
 				}
-				deleteWherePart(paramCtx);
+				op.delete();
 			}
 		}
 		return value;
+	}
+
+	interface DeleteOperation {
+		void delete();
 	}
 
 	private void deleteWherePart(ParserRuleContext ctx) {
