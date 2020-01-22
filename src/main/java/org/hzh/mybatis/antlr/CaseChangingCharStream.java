@@ -1,4 +1,4 @@
-package org.hzh.mybatis.analyzer;
+package org.hzh.mybatis.antlr;
 
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.misc.Interval;

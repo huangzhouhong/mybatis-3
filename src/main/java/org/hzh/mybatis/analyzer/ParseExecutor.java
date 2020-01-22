@@ -1,13 +1,12 @@
 package org.hzh.mybatis.analyzer;
 
-import java.util.Map;
-
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.ParseTreeWalker;
+import org.hzh.mybatis.antlr.CaseChangingCharStream;
+import org.hzh.mybatis.antlr.ErrorStateListener;
+import org.hzh.mybatis.antlr.SafeTokenStream;
 import org.hzh.mybatis.parser.MySqlLexer;
 import org.hzh.mybatis.parser.MySqlParser;
 
@@ -36,7 +35,7 @@ public class ParseExecutor {
 		}
 
 		ParseResult parseResult = new ParseResult();
-		parseResult.tokens = tokens;
+		parseResult.tokens = SafeTokenStream.CopyFrom(tokens);
 		parseResult.tree = tree;
 		parseResult.originalSql = originalSql;
 		parseResult.parser = parser;

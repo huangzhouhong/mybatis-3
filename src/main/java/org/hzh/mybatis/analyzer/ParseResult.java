@@ -3,6 +3,7 @@ package org.hzh.mybatis.analyzer;
 import java.util.Set;
 
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
@@ -10,11 +11,12 @@ import org.hzh.mybatis.listener.ParamListener;
 import org.hzh.mybatis.listener.ParamListener.ParamInfo;
 import org.hzh.mybatis.listener.SqlProcessorListener;
 import org.hzh.mybatis.parser.MySqlParser;
+import org.hzh.mybatis.utils.DebugUtils;
 
 public class ParseResult {
 	String originalSql;
 	ParseTree tree;
-	CommonTokenStream tokens;
+	TokenStream tokens;
 	MySqlParser parser;
 	// to do: add dynamic property for performance
 
@@ -51,9 +53,14 @@ public class ParseResult {
 		ParseTreeWalker walker = new ParseTreeWalker();
 		walker.walk(listener, tree);
 
+		String executaleSql = rewriter.getText();
 		ApplyParamResult applyParamResult = new ApplyParamResult();
-		applyParamResult.executaleSql = rewriter.getText();
+		applyParamResult.executaleSql = executaleSql;
 		applyParamResult.paramList = listener.getParamList();
+//		System.out.println(applyParamResult);
+
+		assert executaleSql.indexOf('#') == -1
+				&& DebugUtils.countForChar(executaleSql, '?') == listener.getParamList().size();
 
 		return applyParamResult;
 	}

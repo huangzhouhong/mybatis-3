@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.antlr.v4.parse.ANTLRParser.option_return;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.hzh.mybatis.expression.PropertyUtils;
@@ -22,7 +21,6 @@ import org.hzh.mybatis.parser.MySqlParser.LimitClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalOperatorContext;
 import org.hzh.mybatis.parser.MySqlParser.ParamContext;
-import org.hzh.mybatis.parser.MySqlParser.PredicateExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.RegexpPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.SoundsLikePredicateContext;
 import org.slf4j.Logger;
@@ -49,11 +47,6 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	@Override
 	public void enterBinaryComparasionPredicate(BinaryComparasionPredicateContext ctx) {
 		processWhereSimpleParamContext(ctx.right.param());
-//		Object value = getWherePartParamValue(ctx.right.param());
-//		if (value != null) {
-//			rewriter.replace(ctx.right.start, ctx.right.stop, "?");
-//			paramList.add(value);
-//		}
 	}
 
 	@Override
