@@ -13,6 +13,7 @@ import org.hzh.mybatis.expression.PropertyUtils;
 import org.hzh.mybatis.parser.MySqlBaseListener;
 import org.hzh.mybatis.parser.MySqlParser.BetweenPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.BinaryComparasionPredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.ConcatUpdatedElementsContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.InPredicateContext;
@@ -23,6 +24,7 @@ import org.hzh.mybatis.parser.MySqlParser.LogicalOperatorContext;
 import org.hzh.mybatis.parser.MySqlParser.ParamContext;
 import org.hzh.mybatis.parser.MySqlParser.RegexpPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.SoundsLikePredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.UpdatedElementContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -136,6 +138,21 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	}
 
 	@Override
+	public void enterUpdatedElement(UpdatedElementContext ctx) {
+		Object value = getParamValueAllowNull(ctx.param(), () -> {
+			rewriter.delete(ctx.start, ctx.stop);
+			if (ctx.parent != null && ctx.parent.parent instanceof ConcatUpdatedElementsContext) {
+				ConcatUpdatedElementsContext parent = (ConcatUpdatedElementsContext) ctx.parent.parent;
+				rewriter.delete(parent.comma);
+			}
+		});
+		if (value != null) {
+			rewriter.replace(ctx.param().start, ctx.param().stop, "?");
+			paramList.add(value);
+		}
+	}
+
+	@Override
 	public void exitLogicalExpression(LogicalExpressionContext ctx) {
 		// if two expr deleted,find ancestor `LogicalExpressionContext` and delete
 		// `logicalOperator`
@@ -181,6 +198,24 @@ public class SqlProcessorListener extends MySqlBaseListener {
 					throw new RuntimeException("param " + paramName + " required");
 				}
 				op.delete();
+			}
+		}
+		return value;
+	}
+
+	private Object getParamValueAllowNull(ParamContext paramCtx, DeleteOperation op) {
+		Object value = null;
+		if (paramCtx != null) {
+			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
+			String paramName = paramCtx.paramName().getText();
+			value = getExpressionValue(paramName);
+			if (value == null) {
+				if (required) {
+					rewriter.replace(paramCtx.start, paramCtx.stop, "?");
+					paramList.add(null);
+				} else {
+					op.delete();
+				}
 			}
 		}
 		return value;
