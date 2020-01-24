@@ -5,17 +5,15 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.hzh.mybatis.antlr.CaseChangingCharStream;
-import org.hzh.mybatis.antlr.ErrorStateListener;
+import org.hzh.mybatis.antlr.ErrorListener;
 import org.hzh.mybatis.antlr.SafeTokenStream;
 import org.hzh.mybatis.parser.MySqlLexer;
 import org.hzh.mybatis.parser.MySqlParser;
 
 public class ParseExecutor {
 	public ParseResult parse(String originalSql) {
-		ErrorStateListener lexerListener = new ErrorStateListener();
-		lexerListener.setPrefix("lexer");
-		ErrorStateListener parserListener = new ErrorStateListener();
-		parserListener.setPrefix("parser");
+		ErrorListener lexerListener = new ErrorListener("lexer");
+		ErrorListener parserListener = new ErrorListener("parser");
 
 		CharStream is = CharStreams.fromString(originalSql);
 		CaseChangingCharStream caseChangingCharStream = new CaseChangingCharStream(is, true);
@@ -29,10 +27,6 @@ public class ParseExecutor {
 		parser.addErrorListener(parserListener);
 
 		ParseTree tree = parser.dmlStatement();
-
-		if (lexerListener.getHasError() || parserListener.getHasError()) {
-			throw new RuntimeException();
-		}
 
 		ParseResult parseResult = new ParseResult();
 		parseResult.tokens = SafeTokenStream.CopyFrom(tokens);

@@ -8,15 +8,20 @@ import java.util.List;
 import java.util.Set;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
+import org.hzh.mybatis.antlr.AntlrUtils;
 import org.hzh.mybatis.expression.PropertyUtils;
 import org.hzh.mybatis.parser.MySqlBaseListener;
 import org.hzh.mybatis.parser.MySqlParser.BetweenPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.BinaryComparasionPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.ConcatUpdatedElementsContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
+import org.hzh.mybatis.parser.MySqlParser.ExpressionOrDefaultContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.InPredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.InsertStatementValueContext;
+import org.hzh.mybatis.parser.MySqlParser.InsertValueListContext;
 import org.hzh.mybatis.parser.MySqlParser.LikePredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.LimitClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.LogicalExpressionContext;
@@ -32,14 +37,20 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	private static final Logger logger = LoggerFactory.getLogger(SqlProcessorListener.class);
 
 	private TokenStreamRewriter rewriter;
+	private TokenStream tokentStream;
 	private Object param;
 	private Set<Object> deletedExprs = new HashSet<>();
 
 	List<Object> paramList = new ArrayList<>();
 
-	public SqlProcessorListener(TokenStreamRewriter rewriter, Object param) {
-		this.rewriter = rewriter;
+	public SqlProcessorListener(TokenStream tokentStream, Object param) {
+		this.rewriter = new TokenStreamRewriter(tokentStream);
+		this.tokentStream = tokentStream;
 		this.param = param;
+	}
+
+	public String getText() {
+		return rewriter.getText();
 	}
 
 	public List<Object> getParamList() {
@@ -149,6 +160,64 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		if (value != null) {
 			rewriter.replace(ctx.param().start, ctx.param().stop, "?");
 			paramList.add(value);
+		}
+	}
+
+	@Override
+	public void enterInsertValueList(InsertValueListContext ctx) {
+		List<ExpressionOrDefaultContext> expressionOrDefaultContexts = ctx.expressionOrDefault();
+
+		List<String> paramDefineList = new ArrayList<>(expressionOrDefaultContexts.size());
+		List<Object> valueList = new ArrayList<Object>(expressionOrDefaultContexts.size());
+		for (ExpressionOrDefaultContext exprCtx : expressionOrDefaultContexts) {
+			ParamContext paramCtx = exprCtx.param();
+			Object value = null;
+			if (paramCtx != null) {
+				boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
+				String paramName = paramCtx.paramName().getText();
+				if (!required) {
+					throw new RuntimeException(paramName + " : insert value must not be optional (#?)");
+				}
+				value = getExpressionValue(paramName);
+				paramDefineList.add("?");
+				valueList.add(value);
+			} else {
+				String exprText = AntlrUtils.getText(exprCtx, tokentStream);
+				paramDefineList.add(exprText);
+			}
+		}
+
+		// get entity count
+		Integer entityCount = null;
+		for (Object value : valueList) {
+			if (value != null) {
+				if (value instanceof Collection) {
+					int count = ((Collection<?>) value).size();
+					if (entityCount != null && count != entityCount) {
+						throw new RuntimeException("values for insert size inconsistent");
+					}
+					entityCount = count;
+				} else {
+					entityCount = 1;
+				}
+			}
+		}
+		if (entityCount == null) {
+			entityCount = 1;
+		}
+
+		String itemDefine = "(" + String.join(",", paramDefineList) + ")";
+		String valueDefines = String.join(",", Collections.nCopies(entityCount, itemDefine));
+		rewriter.replace(ctx.start, ctx.stop, valueDefines);
+
+		for (int i = 0; i < entityCount; i++) {
+			for (Object value : valueList) {
+				if (value instanceof Collection) {
+					paramList.add(PropertyUtils.getByIndex(value, i));
+				} else {
+					paramList.add(value);
+				}
+			}
 		}
 	}
 
