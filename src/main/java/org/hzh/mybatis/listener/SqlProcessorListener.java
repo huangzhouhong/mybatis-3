@@ -20,6 +20,7 @@ import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionOrDefaultContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
 import org.hzh.mybatis.parser.MySqlParser.InItemContext;
+import org.hzh.mybatis.parser.MySqlParser.InPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.InsertValueListContext;
 import org.hzh.mybatis.parser.MySqlParser.LikePredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.LimitClauseContext;
@@ -61,35 +62,6 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		processWhereSimpleParamContext(ctx.right.param());
 	}
 
-//	@Override
-//	public void enterInPredicate(InPredicateContext ctx) {
-//		if (ctx.inItems() == null) {
-//			return;
-//		}
-//
-//		ParamContext paramCtx = ctx.param();
-//		Object value = getWherePartParamValue(paramCtx);
-//		if (value != null) {
-//			List<Object> items = new ArrayList<>();
-//			if (value instanceof Collection) {
-//				items.addAll((Collection<?>) value);
-//			} else {
-//				items.add(value);
-//			}
-//			String questionMarks = String.join(",", Collections.nCopies(items.size(), "?"));
-//			if (ctx.leftBracket == null) {
-//				questionMarks = "(" + questionMarks;
-//			}
-//			if (ctx.rightBracket == null) {
-//				questionMarks = questionMarks + ")";
-//			}
-//			rewriter.replace(paramCtx.start, paramCtx.stop, questionMarks);
-//			for (Object object : items) {
-//				paramList.add(object);
-//			}
-//		}
-//	}
-
 	@Override
 	public void enterInItem(InItemContext ctx) {
 		ParamHandler paramHandler = new ParamHandler(ctx.param());
@@ -100,6 +72,7 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				ConcatInItemsContext parent = (ConcatInItemsContext) ctx.parent.parent;
 				rewriter.delete(parent.comma);
 			}
+			deletedExprs.add(paramHandler.context);
 		} else if (value != null) {
 			List<Object> items = new ArrayList<>();
 			if (value instanceof Collection) {
@@ -113,6 +86,22 @@ public class SqlProcessorListener extends MySqlBaseListener {
 			for (Object object : items) {
 				paramList.add(object);
 			}
+		}
+	}
+
+	@Override
+	public void exitInPredicate(InPredicateContext ctx) {
+		List<InItemContext> itemContexts = AntlrUtils.getDecendants(ctx, InItemContext.class);
+
+		boolean delete = true;
+		for (InItemContext inItemContext : itemContexts) {
+			if (inItemContext.param() == null || !deletedExprs.contains(inItemContext.param())) {
+				delete = false;
+				break;
+			}
+		}
+		if (delete) {
+			deleteWherePart(ctx);
 		}
 	}
 
@@ -159,7 +148,6 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				limitHandler.replaceParamContextWithValue();
 			}
 		} else {
-			// offset defined
 			ParamHandler offsetHandler = new ParamHandler(ctx.offset.param());
 			boolean offsetFirst = ctx.OFFSET() == null;
 			if (offsetHandler.hasNullValue()) {
@@ -171,6 +159,7 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				rewriter.delete(ctx.offset);
 			}
 
+			// `offset,limit` or `limit OFFSET offset`
 			List<Object> limitParamValueList = new ArrayList<>(2);
 			if (limitHandler.value != null) {
 				rewriter.replaceWithQuestionMark(ctx.limit);
@@ -187,16 +176,20 @@ public class SqlProcessorListener extends MySqlBaseListener {
 
 	@Override
 	public void enterUpdatedElement(UpdatedElementContext ctx) {
-		Object value = getParamValueAllowNull(ctx.param(), () -> {
-			rewriter.delete(ctx.start, ctx.stop);
-			if (ctx.parent != null && ctx.parent.parent instanceof ConcatUpdatedElementsContext) {
-				ConcatUpdatedElementsContext parent = (ConcatUpdatedElementsContext) ctx.parent.parent;
-				rewriter.delete(parent.comma);
+		ParamHandler paramHandler = new ParamHandler(ctx.param(), false);
+		if (paramHandler.hasNullValue()) {
+			if (paramHandler.required) {
+				paramHandler.replaceParamContextWithValue();
+			} else {
+				rewriter.delete(ctx);
+				if (ctx.parent != null && ctx.parent.parent instanceof ConcatUpdatedElementsContext) {
+					ConcatUpdatedElementsContext parent = (ConcatUpdatedElementsContext) ctx.parent.parent;
+					rewriter.delete(parent.comma);
+				}
 			}
-		});
-		if (value != null) {
-			rewriter.replace(ctx.param().start, ctx.param().stop, "?");
-			paramList.add(value);
+		}
+		if (paramHandler.value != null) {
+			paramHandler.replaceParamContextWithValue();
 		}
 	}
 
@@ -288,44 +281,6 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				paramHandler.replaceParamContextWithValue();
 			}
 		}
-	}
-
-//	private Object getWherePartParamValue(ParamContext paramCtx) {
-//		return getParamValue(paramCtx, () -> deleteWherePart(paramCtx));
-//	}
-
-	// try get param
-	// if ParamContext not null(defined) and value null,call delete callback
-//	private Object getParamValue(ParamContext paramCtx, DeleteOperation op) {
-//		Object value = null;
-//		if (paramCtx != null) {
-//			ParamHandler paramHandler = new ParamHandler(paramCtx);
-//			value = paramHandler.value;
-//			if (value == null) {
-//				op.delete();
-//			}
-//		}
-//		return value;
-//	}
-
-	private Object getParamValueAllowNull(ParamContext paramCtx, DeleteOperation op) {
-		Object value = null;
-		if (paramCtx != null) {
-			ParamHandler paramHandler = new ParamHandler(paramCtx, false);
-			value = paramHandler.value;
-			if (value == null) {
-				if (paramHandler.required) {
-					paramHandler.replaceParamContextWithValue();
-				} else {
-					op.delete();
-				}
-			}
-		}
-		return value;
-	}
-
-	interface DeleteOperation {
-		void delete();
 	}
 
 	private void deleteWherePart(ParserRuleContext ctx) {
