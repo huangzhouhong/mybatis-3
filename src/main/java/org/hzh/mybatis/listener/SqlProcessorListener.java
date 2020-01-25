@@ -9,18 +9,17 @@ import java.util.Set;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.hzh.mybatis.antlr.AntlrUtils;
 import org.hzh.mybatis.expression.PropertyUtils;
 import org.hzh.mybatis.parser.MySqlBaseListener;
 import org.hzh.mybatis.parser.MySqlParser.BetweenPredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.BinaryComparasionPredicateContext;
+import org.hzh.mybatis.parser.MySqlParser.ConcatInItemsContext;
 import org.hzh.mybatis.parser.MySqlParser.ConcatUpdatedElementsContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionContext;
 import org.hzh.mybatis.parser.MySqlParser.ExpressionOrDefaultContext;
 import org.hzh.mybatis.parser.MySqlParser.FromClauseContext;
-import org.hzh.mybatis.parser.MySqlParser.InPredicateContext;
-import org.hzh.mybatis.parser.MySqlParser.InsertStatementValueContext;
+import org.hzh.mybatis.parser.MySqlParser.InItemContext;
 import org.hzh.mybatis.parser.MySqlParser.InsertValueListContext;
 import org.hzh.mybatis.parser.MySqlParser.LikePredicateContext;
 import org.hzh.mybatis.parser.MySqlParser.LimitClauseContext;
@@ -36,7 +35,7 @@ import org.slf4j.LoggerFactory;
 public class SqlProcessorListener extends MySqlBaseListener {
 	private static final Logger logger = LoggerFactory.getLogger(SqlProcessorListener.class);
 
-	private TokenStreamRewriter rewriter;
+	private ParamTokenRewriter rewriter;
 	private TokenStream tokentStream;
 	private Object param;
 	private Set<Object> deletedExprs = new HashSet<>();
@@ -44,7 +43,7 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	List<Object> paramList = new ArrayList<>();
 
 	public SqlProcessorListener(TokenStream tokentStream, Object param) {
-		this.rewriter = new TokenStreamRewriter(tokentStream);
+		this.rewriter = new ParamTokenRewriter(tokentStream);
 		this.tokentStream = tokentStream;
 		this.param = param;
 	}
@@ -62,11 +61,46 @@ public class SqlProcessorListener extends MySqlBaseListener {
 		processWhereSimpleParamContext(ctx.right.param());
 	}
 
+//	@Override
+//	public void enterInPredicate(InPredicateContext ctx) {
+//		if (ctx.inItems() == null) {
+//			return;
+//		}
+//
+//		ParamContext paramCtx = ctx.param();
+//		Object value = getWherePartParamValue(paramCtx);
+//		if (value != null) {
+//			List<Object> items = new ArrayList<>();
+//			if (value instanceof Collection) {
+//				items.addAll((Collection<?>) value);
+//			} else {
+//				items.add(value);
+//			}
+//			String questionMarks = String.join(",", Collections.nCopies(items.size(), "?"));
+//			if (ctx.leftBracket == null) {
+//				questionMarks = "(" + questionMarks;
+//			}
+//			if (ctx.rightBracket == null) {
+//				questionMarks = questionMarks + ")";
+//			}
+//			rewriter.replace(paramCtx.start, paramCtx.stop, questionMarks);
+//			for (Object object : items) {
+//				paramList.add(object);
+//			}
+//		}
+//	}
+
 	@Override
-	public void enterInPredicate(InPredicateContext ctx) {
-		ParamContext paramCtx = ctx.param();
-		Object value = getWherePartParamValue(paramCtx);
-		if (value != null) {
+	public void enterInItem(InItemContext ctx) {
+		ParamHandler paramHandler = new ParamHandler(ctx.param());
+		Object value = paramHandler.value;
+		if (paramHandler.hasNullValue()) {
+			paramHandler.delete();
+			if (ctx.parent != null && ctx.parent.parent instanceof ConcatInItemsContext) {
+				ConcatInItemsContext parent = (ConcatInItemsContext) ctx.parent.parent;
+				rewriter.delete(parent.comma);
+			}
+		} else if (value != null) {
 			List<Object> items = new ArrayList<>();
 			if (value instanceof Collection) {
 				items.addAll((Collection<?>) value);
@@ -74,13 +108,8 @@ public class SqlProcessorListener extends MySqlBaseListener {
 				items.add(value);
 			}
 			String questionMarks = String.join(",", Collections.nCopies(items.size(), "?"));
-			if (ctx.leftBracket == null) {
-				questionMarks = "(" + questionMarks;
-			}
-			if (ctx.rightBracket == null) {
-				questionMarks = questionMarks + ")";
-			}
-			rewriter.replace(paramCtx.start, paramCtx.stop, questionMarks);
+
+			rewriter.replace(ctx, questionMarks);
 			for (Object object : items) {
 				paramList.add(object);
 			}
@@ -89,14 +118,18 @@ public class SqlProcessorListener extends MySqlBaseListener {
 
 	@Override
 	public void enterBetweenPredicate(BetweenPredicateContext ctx) {
-		Object value1 = getWherePartParamValue(ctx.p1.param());
-		Object value2 = getWherePartParamValue(ctx.p2.param());
-		if (value1 != null && value2 != null) {
-			rewriter.replace(ctx.p1.start, ctx.p1.stop, "?");
-			rewriter.replace(ctx.p2.start, ctx.p2.stop, "?");
-			paramList.add(value1);
-			paramList.add(value2);
+		ParamHandler handler1 = new ParamHandler(ctx.p1.param());
+		if (handler1.hasNullValue()) {
+			deleteWherePart(ctx);
+			return;
 		}
+		ParamHandler handler2 = new ParamHandler(ctx.p2.param());
+		if (handler2.hasNullValue()) {
+			deleteWherePart(ctx);
+			return;
+		}
+		handler1.replaceParamContextWithValue();
+		handler2.replaceParamContextWithValue();
 	}
 
 	@Override
@@ -116,33 +149,37 @@ public class SqlProcessorListener extends MySqlBaseListener {
 
 	@Override
 	public void enterLimitClause(LimitClauseContext ctx) {
-		ParamContext limitParamCtx = ctx.limit.param();
-		Object limitValue = getParamValue(limitParamCtx, () -> rewriter.delete(ctx.start, ctx.stop));
+		ParamHandler limitHandler = new ParamHandler(ctx.limit.param());
+		if (limitHandler.hasNullValue()) {
+			rewriter.delete(ctx);
+			return;
+		}
 		if (ctx.offset == null) {
-			if (limitValue != null) {
-				rewriter.replace(ctx.limit.start, ctx.limit.stop, "?");
-				paramList.add(limitValue);
+			if (limitHandler.value != null) {
+				limitHandler.replaceParamContextWithValue();
 			}
 		} else {
+			// offset defined
+			ParamHandler offsetHandler = new ParamHandler(ctx.offset.param());
 			boolean offsetFirst = ctx.OFFSET() == null;
-			Object offsetValue = getParamValue(ctx.offset.param(), () -> {
+			if (offsetHandler.hasNullValue()) {
 				if (offsetFirst) {
 					rewriter.delete(ctx.op);
 				} else {
-					rewriter.delete(ctx.OFFSET().getSymbol());
+					rewriter.delete(ctx.OFFSET());
 				}
-				rewriter.delete(ctx.offset.start, ctx.offset.stop);
-			});
+				rewriter.delete(ctx.offset);
+			}
 
 			List<Object> limitParamValueList = new ArrayList<>(2);
-			if (limitValue != null) {
-				rewriter.replace(ctx.limit.start, ctx.limit.stop, "?");
-				limitParamValueList.add(limitValue);
+			if (limitHandler.value != null) {
+				rewriter.replaceWithQuestionMark(ctx.limit);
+				limitParamValueList.add(limitHandler.value);
 			}
-			if (offsetValue != null) {
-				rewriter.replace(ctx.offset.start, ctx.offset.stop, "?");
+			if (offsetHandler.value != null) {
+				rewriter.replaceWithQuestionMark(ctx.offset);
 				int offsetValueIndex = offsetFirst ? 0 : 1;
-				limitParamValueList.add(offsetValueIndex, offsetValue);
+				limitParamValueList.add(offsetValueIndex, offsetHandler.value);
 			}
 			paramList.addAll(limitParamValueList);
 		}
@@ -243,45 +280,42 @@ public class SqlProcessorListener extends MySqlBaseListener {
 	}
 
 	private void processWhereSimpleParamContext(ParamContext paramCtx) {
-		Object value = getWherePartParamValue(paramCtx);
-		if (value != null) {
-			rewriter.replace(paramCtx.start, paramCtx.stop, "?");
-			paramList.add(value);
+		if (paramCtx != null) {
+			ParamHandler paramHandler = new ParamHandler(paramCtx);
+			if (paramHandler.value == null) {
+				deleteWherePart(paramCtx);
+			} else {
+				paramHandler.replaceParamContextWithValue();
+			}
 		}
 	}
 
-	private Object getWherePartParamValue(ParamContext paramCtx) {
-		return getParamValue(paramCtx, () -> deleteWherePart(paramCtx));
-	}
+//	private Object getWherePartParamValue(ParamContext paramCtx) {
+//		return getParamValue(paramCtx, () -> deleteWherePart(paramCtx));
+//	}
 
 	// try get param
 	// if ParamContext not null(defined) and value null,call delete callback
-	private Object getParamValue(ParamContext paramCtx, DeleteOperation op) {
-		Object value = null;
-		if (paramCtx != null) {
-			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
-			String paramName = paramCtx.paramName().getText();
-			value = getExpressionValue(paramName);
-			if (value == null) {
-				if (required) {
-					throw new RuntimeException("param " + paramName + " required");
-				}
-				op.delete();
-			}
-		}
-		return value;
-	}
+//	private Object getParamValue(ParamContext paramCtx, DeleteOperation op) {
+//		Object value = null;
+//		if (paramCtx != null) {
+//			ParamHandler paramHandler = new ParamHandler(paramCtx);
+//			value = paramHandler.value;
+//			if (value == null) {
+//				op.delete();
+//			}
+//		}
+//		return value;
+//	}
 
 	private Object getParamValueAllowNull(ParamContext paramCtx, DeleteOperation op) {
 		Object value = null;
 		if (paramCtx != null) {
-			boolean required = paramCtx.PARAM_PREFIX().getText().equals("#");
-			String paramName = paramCtx.paramName().getText();
-			value = getExpressionValue(paramName);
+			ParamHandler paramHandler = new ParamHandler(paramCtx, false);
+			value = paramHandler.value;
 			if (value == null) {
-				if (required) {
-					rewriter.replace(paramCtx.start, paramCtx.stop, "?");
-					paramList.add(null);
+				if (paramHandler.required) {
+					paramHandler.replaceParamContextWithValue();
 				} else {
 					op.delete();
 				}
@@ -319,6 +353,55 @@ public class SqlProcessorListener extends MySqlBaseListener {
 
 	private Object getExpressionValue(String expr) {
 		return PropertyUtils.getExpression(param, expr);
+	}
+
+	class ParamHandler {
+		ParamContext context;
+		boolean defined;
+		boolean required;
+		String paramName;
+		Object value;
+
+		ParamHandler(ParamContext context) {
+			this(context, true);
+		}
+
+		ParamHandler(ParamContext context, boolean checkRequire) {
+			this.context = context;
+			if (context != null) {
+				defined = true;
+				required = context.PARAM_PREFIX().getText().equals("#");
+				paramName = context.paramName().getText();
+				value = PropertyUtils.getExpression(param, paramName);
+				if (checkRequire) {
+					checkRequire();
+				}
+			}
+		}
+
+		public boolean hasNullValue() {
+			return defined && value == null;
+		}
+
+		public void replaceParamContextWithValue() {
+			if (context != null) {
+				rewriter.replaceWithQuestionMark(context);
+				paramList.add(value);
+			}
+		}
+
+		public void delete() {
+			if (context != null) {
+				rewriter.delete(context);
+			}
+		}
+
+		private void checkRequire() {
+			assert context != null;
+			if (value == null && required) {
+				throw new RuntimeException("param " + paramName + " required");
+			}
+		}
 	}
 
 }
