@@ -4,8 +4,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 
-import org.apache.ibatis.binding.BindingException;
-import org.apache.ibatis.session.defaults.DefaultSqlSession.StrictMap;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 import org.hzh.mybatis.expression.PropertyUtils;
 
@@ -50,26 +48,21 @@ public class OneParamMap extends HashMap<String, Object> {
 
 	@Override
 	public Object get(Object key) {
+		if (super.containsKey(key)) {
+			return super.get(key);
+		}
+
 		// DefaultParameterHandler.setParameters
 		if (theValue == null) {
 			return null;
 		}
-		//simple type
+		// simple type
 		boolean canDirectMapToDbType = typeHandlerRegistry.hasTypeHandler(theValue.getClass());
 		if (canDirectMapToDbType) {
 			return theValue;
 		}
 
-		// map or bean
-		if (size() == 1) {
-			return PropertyUtils.getByPath(theValue, (String)key);
-		}
-		
-		// list,collection or array
-		if (!super.containsKey(key)) {
-			// only one param, can access property or key of value directly
-			return PropertyUtils.getByPath(theValue, (String)key);
-		}
-		return super.get(key);
+		// map,bean,list,collection or array
+		return PropertyUtils.getByPath(theValue, (String) key);
 	}
 }
