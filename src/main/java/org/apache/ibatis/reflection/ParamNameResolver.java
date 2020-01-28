@@ -27,6 +27,7 @@ import org.apache.ibatis.binding.MapperMethod.ParamMap;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
+import org.hzh.mybatis.utils.OneParamMap;
 
 public class ParamNameResolver {
 
@@ -112,7 +113,9 @@ public class ParamNameResolver {
     if (args == null || paramCount == 0) {
       return null;
     } else if (!hasParamAnnotation && paramCount == 1) {
-      return args[names.firstKey()];
+    	Object value=args[names.firstKey()];
+		String paramName = names.get(names.firstKey());
+		return new OneParamMap(paramName, value);
     } else {
       final Map<String, Object> param = new ParamMap<>();
       int i = 0;

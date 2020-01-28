@@ -4,8 +4,10 @@ import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -55,9 +57,12 @@ public class PropertyUtils {
 				}
 			}
 			return itemPropertyList;
-		} else {
-			return getProperty(obj, path);
 		}
+		else if(obj!=null && obj.getClass().isArray() ) {
+			return getByPath(Arrays.asList((Object[])obj), path);
+		}
+		
+		return getProperty(obj, path);
 	}
 
 	public static Object getByIndex(Object obj, int index) {
@@ -67,6 +72,8 @@ public class PropertyUtils {
 			List<Object> list = new ArrayList<Object>();
 			list.addAll((Collection<?>) obj);
 			return list.add(index);
+		} else if (obj != null && obj.getClass().isArray()) {
+			return Array.get(obj, index);
 		}
 		return null;
 	}
@@ -79,7 +86,8 @@ public class PropertyUtils {
 				Method method = getReadMethod(bean.getClass(), propertyName);
 				return method.invoke(bean, NULL_ARGUMENTS);
 			} catch (Exception e) {
-				String msg = " There is no getter for property named " + propertyName + " in '" + bean.getClass() + "'";
+				String msg = " There is no getter for property named '" + propertyName + "' in '" + bean.getClass()
+						+ "'";
 				throw new ReflectPropertyException(msg, e);
 			}
 		}
