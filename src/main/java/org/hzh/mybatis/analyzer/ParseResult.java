@@ -2,14 +2,14 @@ package org.hzh.mybatis.analyzer;
 
 import java.util.Set;
 
-import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.hzh.mybatis.listener.ParamListener;
 import org.hzh.mybatis.listener.ParamListener.ParamInfo;
 import org.hzh.mybatis.listener.SqlProcessorListener;
+import org.hzh.mybatis.parser.MySqlLexer;
 import org.hzh.mybatis.parser.MySqlParser;
 import org.hzh.mybatis.utils.DebugUtils;
 import org.slf4j.Logger;
@@ -49,6 +49,17 @@ public class ParseResult {
 		}
 
 		return sqlParamInfos;
+	}
+	
+	// select,delete,update,insert
+	public String getFirstText() {
+		for (int i = 0; i < tokens.size(); i++) {
+			Token token=tokens.get(i);
+			if (token.getType() != MySqlLexer.SPACE) {
+				return token.getText();
+			}
+		}
+		throw new RuntimeException();
 	}
 
 	public ApplyParamResult apply(Object param) {

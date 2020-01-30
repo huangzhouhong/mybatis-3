@@ -27,6 +27,7 @@ import org.apache.ibatis.logging.Log;
 import org.apache.ibatis.logging.LogFactory;
 import org.apache.ibatis.scripting.LanguageDriver;
 import org.apache.ibatis.session.Configuration;
+import org.hzh.mybatis.interaction.ParseTreeBoundSql;
 
 /**
  * @author Clinton Begin
@@ -295,6 +296,9 @@ public final class MappedStatement {
 
   public BoundSql getBoundSql(Object parameterObject) {
     BoundSql boundSql = sqlSource.getBoundSql(parameterObject);
+    if (boundSql instanceof ParseTreeBoundSql) {
+		return boundSql;
+	}
     List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
     if (parameterMappings == null || parameterMappings.isEmpty()) {
       boundSql = new BoundSql(configuration, boundSql.getSql(), parameterMap.getParameterMappings(), parameterObject);

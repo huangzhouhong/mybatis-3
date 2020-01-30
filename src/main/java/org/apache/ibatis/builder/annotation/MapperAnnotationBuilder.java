@@ -82,6 +82,7 @@ import org.apache.ibatis.mapping.SqlCommandType;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.mapping.StatementType;
 import org.apache.ibatis.parsing.PropertyParser;
+import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.reflection.TypeParameterResolver;
 import org.apache.ibatis.scripting.LanguageDriver;
 import org.apache.ibatis.session.Configuration;
@@ -90,6 +91,8 @@ import org.apache.ibatis.session.RowBounds;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
 import org.apache.ibatis.type.UnknownTypeHandler;
+import org.hzh.mybatis.interaction.ParseTreeSqlSource;
+import org.hzh.mybatis.interaction.Sql;
 
 /**
  * @author Clinton Begin
@@ -297,91 +300,117 @@ public class MapperAnnotationBuilder {
   }
 
   void parseStatement(Method method) {
-    Class<?> parameterTypeClass = getParameterType(method);
-    LanguageDriver languageDriver = getLanguageDriver(method);
-    SqlSource sqlSource = getSqlSourceFromAnnotations(method, parameterTypeClass, languageDriver);
-    if (sqlSource != null) {
-      Options options = method.getAnnotation(Options.class);
-      final String mappedStatementId = type.getName() + "." + method.getName();
-      Integer fetchSize = null;
-      Integer timeout = null;
-      StatementType statementType = StatementType.PREPARED;
-      ResultSetType resultSetType = configuration.getDefaultResultSetType();
-      SqlCommandType sqlCommandType = getSqlCommandType(method);
-      boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
-      boolean flushCache = !isSelect;
-      boolean useCache = isSelect;
+		Class<?> parameterTypeClass = getParameterType(method);
+		LanguageDriver languageDriver = getLanguageDriver(method);
+		SqlSource sqlSource = getSqlSourceFromAnnotations(method, parameterTypeClass, languageDriver);
+		if (sqlSource != null) {
+			SqlCommandType sqlCommandType = getSqlCommandType(method);
+			createMappedStatement(method, parameterTypeClass, languageDriver, sqlSource, sqlCommandType);
+		} else {
+			ParseTreeSqlSource parseTreeSqlSource = getParseTreeSqlSource(method);
+			if (parseTreeSqlSource != null) {
+				SqlCommandType sqlCommandType = parseTreeSqlSource.getSqlCommandType();
+				createMappedStatement(method, parameterTypeClass, languageDriver, parseTreeSqlSource, sqlCommandType);
+			}
+		}
+	}
 
-      KeyGenerator keyGenerator;
-      String keyProperty = null;
-      String keyColumn = null;
-      if (SqlCommandType.INSERT.equals(sqlCommandType) || SqlCommandType.UPDATE.equals(sqlCommandType)) {
-        // first check for SelectKey annotation - that overrides everything else
-        SelectKey selectKey = method.getAnnotation(SelectKey.class);
-        if (selectKey != null) {
-          keyGenerator = handleSelectKeyAnnotation(selectKey, mappedStatementId, getParameterType(method), languageDriver);
-          keyProperty = selectKey.keyProperty();
-        } else if (options == null) {
-          keyGenerator = configuration.isUseGeneratedKeys() ? Jdbc3KeyGenerator.INSTANCE : NoKeyGenerator.INSTANCE;
-        } else {
-          keyGenerator = options.useGeneratedKeys() ? Jdbc3KeyGenerator.INSTANCE : NoKeyGenerator.INSTANCE;
-          keyProperty = options.keyProperty();
-          keyColumn = options.keyColumn();
-        }
-      } else {
-        keyGenerator = NoKeyGenerator.INSTANCE;
-      }
+	private void createMappedStatement(Method method, Class<?> parameterTypeClass, LanguageDriver languageDriver,
+			SqlSource sqlSource, SqlCommandType sqlCommandType) {
+		Options options = method.getAnnotation(Options.class);
+		final String mappedStatementId = type.getName() + "." + method.getName();
+		Integer fetchSize = null;
+		Integer timeout = null;
+		StatementType statementType = StatementType.PREPARED;
+		ResultSetType resultSetType = configuration.getDefaultResultSetType();
+		boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
+		boolean flushCache = !isSelect;
+		boolean useCache = isSelect;
 
-      if (options != null) {
-        if (FlushCachePolicy.TRUE.equals(options.flushCache())) {
-          flushCache = true;
-        } else if (FlushCachePolicy.FALSE.equals(options.flushCache())) {
-          flushCache = false;
-        }
-        useCache = options.useCache();
-        fetchSize = options.fetchSize() > -1 || options.fetchSize() == Integer.MIN_VALUE ? options.fetchSize() : null; //issue #348
-        timeout = options.timeout() > -1 ? options.timeout() : null;
-        statementType = options.statementType();
-        if (options.resultSetType() != ResultSetType.DEFAULT) {
-          resultSetType = options.resultSetType();
-        }
-      }
+		KeyGenerator keyGenerator;
+		String keyProperty = null;
+		String keyColumn = null;
+		if (SqlCommandType.INSERT.equals(sqlCommandType) || SqlCommandType.UPDATE.equals(sqlCommandType)) {
+			// first check for SelectKey annotation - that overrides everything else
+			SelectKey selectKey = method.getAnnotation(SelectKey.class);
+			if (selectKey != null) {
+				keyGenerator = handleSelectKeyAnnotation(selectKey, mappedStatementId, getParameterType(method),
+						languageDriver);
+				keyProperty = selectKey.keyProperty();
+			} else if (options == null) {
+				keyGenerator = configuration.isUseGeneratedKeys() ? Jdbc3KeyGenerator.INSTANCE
+						: NoKeyGenerator.INSTANCE;
+			} else {
+				keyGenerator = options.useGeneratedKeys() ? Jdbc3KeyGenerator.INSTANCE : NoKeyGenerator.INSTANCE;
+				keyProperty = options.keyProperty();
+				keyColumn = options.keyColumn();
+			}
+		} else {
+			keyGenerator = NoKeyGenerator.INSTANCE;
+		}
 
-      String resultMapId = null;
-      ResultMap resultMapAnnotation = method.getAnnotation(ResultMap.class);
-      if (resultMapAnnotation != null) {
-        resultMapId = String.join(",", resultMapAnnotation.value());
-      } else if (isSelect) {
-        resultMapId = parseResultMap(method);
-      }
+		if (options != null) {
+			if (FlushCachePolicy.TRUE.equals(options.flushCache())) {
+				flushCache = true;
+			} else if (FlushCachePolicy.FALSE.equals(options.flushCache())) {
+				flushCache = false;
+			}
+			useCache = options.useCache();
+			fetchSize = options.fetchSize() > -1 || options.fetchSize() == Integer.MIN_VALUE ? options.fetchSize()
+					: null; // issue #348
+			timeout = options.timeout() > -1 ? options.timeout() : null;
+			statementType = options.statementType();
+			if (options.resultSetType() != ResultSetType.DEFAULT) {
+				resultSetType = options.resultSetType();
+			}
+		}
 
-      assistant.addMappedStatement(
-          mappedStatementId,
-          sqlSource,
-          statementType,
-          sqlCommandType,
-          fetchSize,
-          timeout,
-          // ParameterMapID
-          null,
-          parameterTypeClass,
-          resultMapId,
-          getReturnType(method),
-          resultSetType,
-          flushCache,
-          useCache,
-          // TODO gcode issue #577
-          false,
-          keyGenerator,
-          keyProperty,
-          keyColumn,
-          // DatabaseID
-          null,
-          languageDriver,
-          // ResultSets
-          options != null ? nullOrEmpty(options.resultSets()) : null);
-    }
-  }
+		String resultMapId = null;
+		ResultMap resultMapAnnotation = method.getAnnotation(ResultMap.class);
+		if (resultMapAnnotation != null) {
+			resultMapId = String.join(",", resultMapAnnotation.value());
+		} else if (isSelect) {
+			resultMapId = parseResultMap(method);
+		}
+
+		assistant.addMappedStatement(mappedStatementId, sqlSource, statementType, sqlCommandType, fetchSize, timeout,
+				// ParameterMapID
+				null, parameterTypeClass, resultMapId, getReturnType(method), resultSetType, flushCache, useCache,
+				// TODO gcode issue #577
+				false, keyGenerator, keyProperty, keyColumn,
+				// DatabaseID
+				null, languageDriver,
+				// ResultSets
+				options != null ? nullOrEmpty(options.resultSets()) : null);
+	}
+
+	private ParseTreeSqlSource getParseTreeSqlSource(Method method) {
+		try {
+			String sql;
+			Annotation sqlAnnotation = method.getAnnotation(Sql.class);
+			if (sqlAnnotation != null) {
+				final String[] strings = (String[]) sqlAnnotation.getClass().getMethod("value").invoke(sqlAnnotation);
+				final StringBuilder sqlBuilder = new StringBuilder();
+				for (String fragment : strings) {
+					sqlBuilder.append(fragment);
+					sqlBuilder.append(" ");
+				}
+				sql = sqlBuilder.toString();
+			} else {
+				Map<String, XNode> sqls = configuration.getSqlFragments();
+				String key = type.getName() + "." + method.getName();
+				if (sqls.containsKey(key)) {
+					XNode xNode = sqls.get(type.getName() + "." + method.getName());
+					sql = xNode.getStringBody();
+				} else {
+					return null;
+				}
+			}
+			return new ParseTreeSqlSource(configuration, sql);
+		} catch (Exception e) {
+			throw new BuilderException("Could not find value method on SQL annotation.  Cause: " + e, e);
+		}
+	}
 
   private LanguageDriver getLanguageDriver(Method method) {
     Lang lang = method.getAnnotation(Lang.class);

@@ -43,6 +43,7 @@ import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
 import org.apache.ibatis.transaction.Transaction;
 import org.apache.ibatis.type.TypeHandlerRegistry;
+import org.hzh.mybatis.interaction.ParseTreeBoundSql;
 
 /**
  * @author Clinton Begin
@@ -201,26 +202,36 @@ public abstract class BaseExecutor implements Executor {
     cacheKey.update(rowBounds.getOffset());
     cacheKey.update(rowBounds.getLimit());
     cacheKey.update(boundSql.getSql());
-    List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
-    TypeHandlerRegistry typeHandlerRegistry = ms.getConfiguration().getTypeHandlerRegistry();
-    // mimic DefaultParameterHandler logic
-    for (ParameterMapping parameterMapping : parameterMappings) {
-      if (parameterMapping.getMode() != ParameterMode.OUT) {
-        Object value;
-        String propertyName = parameterMapping.getProperty();
-        if (boundSql.hasAdditionalParameter(propertyName)) {
-          value = boundSql.getAdditionalParameter(propertyName);
-        } else if (parameterObject == null) {
-          value = null;
-        } else if (typeHandlerRegistry.hasTypeHandler(parameterObject.getClass())) {
-          value = parameterObject;
-        } else {
-          MetaObject metaObject = configuration.newMetaObject(parameterObject);
-          value = metaObject.getValue(propertyName);
-        }
-        cacheKey.update(value);
-      }
-    }
+    
+    if (boundSql instanceof ParseTreeBoundSql) {
+		ParseTreeBoundSql parseTreeBoundSql=(ParseTreeBoundSql) boundSql;
+		List<Object> paramList=parseTreeBoundSql.getParamList();
+		for (Object param : paramList) {
+			cacheKey.update(param);
+		}
+	}else {
+	    List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
+	    TypeHandlerRegistry typeHandlerRegistry = ms.getConfiguration().getTypeHandlerRegistry();
+	    // mimic DefaultParameterHandler logic
+	    for (ParameterMapping parameterMapping : parameterMappings) {
+	      if (parameterMapping.getMode() != ParameterMode.OUT) {
+	        Object value;
+	        String propertyName = parameterMapping.getProperty();
+	        if (boundSql.hasAdditionalParameter(propertyName)) {
+	          value = boundSql.getAdditionalParameter(propertyName);
+	        } else if (parameterObject == null) {
+	          value = null;
+	        } else if (typeHandlerRegistry.hasTypeHandler(parameterObject.getClass())) {
+	          value = parameterObject;
+	        } else {
+	          MetaObject metaObject = configuration.newMetaObject(parameterObject);
+	          value = metaObject.getValue(propertyName);
+	        }
+	        cacheKey.update(value);
+	      }
+	    }
+	}
+    
     if (configuration.getEnvironment() != null) {
       // issue #176
       cacheKey.update(configuration.getEnvironment().getId());
