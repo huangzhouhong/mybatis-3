@@ -115,7 +115,7 @@ public class PropertyUtils {
 			for (final PropertyDescriptor propertyDescriptor : propertyDescriptors) {
 				if (propertyDescriptor != null) {
 					final String name = propertyDescriptor.getName();
-					if (name.equals(propertyName)) {
+					if (name.equalsIgnoreCase(propertyName)) {
 						return propertyDescriptor;
 					}
 				}

@@ -15,14 +15,14 @@ public class ParseTreeSqlSource implements SqlSource {
 	private final SqlCommandType sqlCommandType;
 	private final Configuration configuration;
 
-	public ParseTreeSqlSource(Configuration configuration,String originalSql) {
+	public ParseTreeSqlSource(Configuration configuration, String originalSql) {
 		ParseExecutor executor = new ParseExecutor();
 		parseResult = executor.parse(originalSql);
-		String firstTextInSql=parseResult.getFirstText();
-		sqlCommandType=SqlCommandType.valueOf(firstTextInSql.toUpperCase(Locale.ENGLISH));
-		this.configuration=configuration;
+		String firstTextInSql = parseResult.getFirstText();
+		sqlCommandType = SqlCommandType.valueOf(firstTextInSql.toUpperCase(Locale.ENGLISH));
+		this.configuration = configuration;
 	}
-	
+
 	public SqlCommandType getSqlCommandType() {
 		return sqlCommandType;
 	}
@@ -30,8 +30,8 @@ public class ParseTreeSqlSource implements SqlSource {
 	@Override
 	public BoundSql getBoundSql(Object parameterObject) {
 		ApplyParamResult applyParamResult = parseResult.apply(parameterObject);
-		ParseTreeBoundSql boundSql = new ParseTreeBoundSql(configuration,applyParamResult);
+		ParseTreeBoundSql boundSql = new ParseTreeBoundSql(configuration, applyParamResult, parameterObject);
 		return boundSql;
 	}
-	
+
 }

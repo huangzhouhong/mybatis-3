@@ -11,11 +11,11 @@ public class ParseTreeBoundSql extends BoundSql {
 
 	ApplyParamResult applyParamResult;
 
-	public ParseTreeBoundSql(Configuration configuration,ApplyParamResult applyParamResult) {
-		super(configuration, applyParamResult.getExecutaleSql(), null, null);
+	public ParseTreeBoundSql(Configuration configuration, ApplyParamResult applyParamResult, Object parameterObject) {
+		super(configuration, applyParamResult.getExecutaleSql(), null, parameterObject);
 		this.applyParamResult = applyParamResult;
 	}
-	
+
 	public List<Object> getParamList() {
 		return applyParamResult.getParamList();
 	}
@@ -25,10 +25,10 @@ public class ParseTreeBoundSql extends BoundSql {
 		throw new RuntimeException();
 	}
 
-	@Override
-	public Object getParameterObject() {
-		throw new RuntimeException();
-	}
+//	@Override
+//	public Object getParameterObject() {
+//		throw new RuntimeException();
+//	}
 
 	@Override
 	public boolean hasAdditionalParameter(String name) {
