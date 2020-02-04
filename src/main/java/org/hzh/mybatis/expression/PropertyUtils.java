@@ -1,3 +1,18 @@
+/**
+ *    Copyright 2009-2020 the original author or authors.
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
 package org.hzh.mybatis.expression;
 
 import java.beans.BeanInfo;
@@ -61,7 +76,7 @@ public class PropertyUtils {
 		else if(obj!=null && obj.getClass().isArray() ) {
 			return getByPath(Arrays.asList((Object[])obj), path);
 		}
-		
+
 		return getProperty(obj, path);
 	}
 
@@ -84,6 +99,9 @@ public class PropertyUtils {
 		} else {
 			try {
 				Method method = getReadMethod(bean.getClass(), propertyName);
+				if (!method.isAccessible()) {
+					method.setAccessible(true);
+				}
 				return method.invoke(bean, NULL_ARGUMENTS);
 			} catch (Exception e) {
 				String msg = " There is no getter for property named '" + propertyName + "' in '" + bean.getClass()
