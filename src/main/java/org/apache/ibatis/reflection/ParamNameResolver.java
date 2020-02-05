@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2018 the original author or authors.
+ *    Copyright 2009-2020 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import org.apache.ibatis.binding.MapperMethod.ParamMap;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
-import org.hzh.mybatis.utils.OneParamMap;
+import org.hzh.mybatis.utils.OneParamNameUtil;
 
 public class ParamNameResolver {
 
@@ -109,13 +109,14 @@ public class ParamNameResolver {
    * </p>
    */
   public Object getNamedParams(Object[] args) {
+	OneParamNameUtil.paramName.set(null);
     final int paramCount = names.size();
     if (args == null || paramCount == 0) {
       return null;
     } else if (!hasParamAnnotation && paramCount == 1) {
-    	Object value=args[names.firstKey()];
-		String paramName = names.get(names.firstKey());
-		return new OneParamMap(paramName, value);
+    	String paramName = names.get(names.firstKey());
+    	OneParamNameUtil.paramName.set(paramName);
+    	return args[names.firstKey()];
     } else {
       final Map<String, Object> param = new ParamMap<>();
       int i = 0;
