@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 
-       Copyright 2009-2019 the original author or authors.
+       Copyright 2009-2020 the original author or authors.
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.
@@ -203,7 +203,7 @@ int delete(String statement, Object parameter)]]></source>
 int insert(String statement)
 int update(String statement)
 int delete(String statement)]]></source>
-  
+
   <p>A Cursor offers the same results as a List, except it fetches data lazily using an Iterator.</p>
   <source><![CDATA[try (Cursor<MyEntity> entities = session.selectCursor(statement, param)) {
    for (MyEntity entity:entities) {

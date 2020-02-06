@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+       Copyright 2009-2020 the original author or authors.
+
+       Licensed under the Apache License, Version 2.0 (the "License");
+       you may not use this file except in compliance with the License.
+       You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+       Unless required by applicable law or agreed to in writing, software
+       distributed under the License is distributed on an "AS IS" BASIS,
+       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       See the License for the specific language governing permissions and
+       limitations under the License.
+
+-->
 <!-- Copyright 2009-2019 the original author or authors. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain 
 	a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, 
 	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
@@ -7,7 +24,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>org.hzh</groupId>
+		<groupId>com.github.huangzhouhong</groupId>
 		<artifactId>mybatis-parent</artifactId>
 		<version>31</version>
 		<relativePath />
@@ -96,14 +113,14 @@
 	</contributors>
 
 	<scm>
-		<url>http://github.com/mybatis/mybatis-3</url>
-		<connection>scm:git:ssh://github.com/mybatis/mybatis-3.git</connection>
-		<developerConnection>scm:git:ssh://git@github.com/mybatis/mybatis-3.git</developerConnection>
-		<tag>mybatis-3.5.3</tag>
+		<url>http://github.com/huangzhouhong/mybatis-3</url>
+		<connection>scm:git:ssh://github.com/huangzhouhong/mybatis-3.git</connection>
+		<developerConnection>scm:git:ssh://git@github.com/huangzhouhong/mybatis-3.git</developerConnection>
+		<tag>0.0.1</tag>
 	</scm>
 	<issueManagement>
 		<system>GitHub Issue Management</system>
-		<url>https://github.com/mybatis/mybatis-3/issues</url>
+		<url>https://github.com/huangzhouhong/mybatis-3/issues</url>
 	</issueManagement>
 	<ciManagement>
 		<system>Travis CI</system>
@@ -406,6 +423,16 @@
 			<properties>
 				<excludedGroups />
 			</properties>
+			<distributionManagement>
+				<snapshotRepository>
+					<id>oss</id>
+					<url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+				</snapshotRepository>
+				<repository>
+					<id>oss</id>
+					<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+				</repository>
+			</distributionManagement>
 		</profile>
 	</profiles>
 

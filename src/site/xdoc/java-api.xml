@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 
-       Copyright 2009-2019 the original author or authors.
+       Copyright 2009-2020 the original author or authors.
 
        Licensed under the Apache License, Version 2.0 (the "License");
        you may not use this file except in compliance with the License.
@@ -209,14 +209,14 @@ int delete(String statement, Object parameter)]]></source>
 int insert(String statement)
 int update(String statement)
 int delete(String statement)]]></source>
-  
+
   <p>A <code>Cursor</code> offers the same results as a List, except it fetches data lazily using an <code>Iterator</code>.</p>
   <source><![CDATA[try (Cursor<MyEntity> entities = session.selectCursor(statement, param)) {
    for (MyEntity entity : entities) {
       // process one entity
    }
 }]]></source>
-  
+
   <p>Finally, there are three advanced versions of the <code>select</code> methods that allow you to restrict the range of rows to return, or provide custom result handling logic, usually for very large data sets.</p>
   <source><![CDATA[<E> List<E> selectList (String statement, Object parameter, RowBounds rowBounds)
 <T> Cursor<T> selectCursor(String statement, Object parameter, RowBounds rowBounds)
