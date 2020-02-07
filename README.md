@@ -179,6 +179,6 @@ blogMapper.insert(blogs);
 1. 设计目标是框架能理解SQL，并根据上下文能处理变量。
 2. 原有注解不受影响，功能也不变。如果要使用上述功能，只需使用`@Sql`或`<sql>`，现有项目迁移过来不需要做任何修改。
 3. 本文源码：[https://github.com/huangzhouhong/mybatis-demo](https://github.com/huangzhouhong/mybatis-demo)
-4. 项目源码：[https://github.com/huangzhouhong/mybatis-3](https://github.com/huangzhouhong/mybatis-3)
-![讨论群](https://upload-images.jianshu.io/upload_images/6719795-c9f4d4f2ffbeed53.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+# 讨论群
+1044263035
 
